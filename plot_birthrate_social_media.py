@@ -1,39 +1,9 @@
 from pathlib import Path
-import zipfile
-import textwrap
-
-base = Path("/mnt/data/source_driven_fertility_project")
-(base / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
-(base / "data" / "raw").mkdir(parents=True, exist_ok=True)
-(base / "data" / "processed").mkdir(parents=True, exist_ok=True)
-(base / "graph").mkdir(parents=True, exist_ok=True)
-
-script = r'''
-"""
-Source-driven chart builder.
-
-This script does NOT hard-code the fertility or social-media data points.
-
-It:
-1. downloads fertility data from the Nomis/ONS API
-2. downloads the original DataReportal UK report pages
-3. extracts the relevant values from those source files
-4. saves raw source files under data/raw/
-5. saves the cleaned joined dataset under data/processed/
-6. creates a zero-baseline chart under graph/
-
-Run:
-    python plot_from_original_sources.py
-"""
-
-from __future__ import annotations
-
-import re
 from io import StringIO
-from pathlib import Path
+import re
 
-import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib.pyplot as plt
 import requests
 from bs4 import BeautifulSoup
 
@@ -53,14 +23,11 @@ END_YEAR = 2024
 YEARS = list(range(START_YEAR, END_YEAR + 1))
 
 
-# Original fertility data source:
-# Nomis dataset LEBIRTHRATES, maintained from ONS source data.
-# Dataset page: https://www.nomisweb.co.uk/datasets/lebirthrates
+# Nomis/ONS dataset for live births and birth rates.
+# Source page: https://www.nomisweb.co.uk/datasets/lebirthrates
 NOMIS_FERTILITY_URL = "https://www.nomisweb.co.uk/api/v01/dataset/LEBIRTHRATES.data.csv"
 
 
-# Original social media source pages:
-# DataReportal publishes yearly UK reports as HTML pages.
 DATAREPORTAL_REPORTS = {
     2020: "https://datareportal.com/reports/digital-2020-united-kingdom",
     2021: "https://datareportal.com/reports/digital-2021-united-kingdom",
@@ -71,12 +38,8 @@ DATAREPORTAL_REPORTS = {
 
 
 def fetch_text(url: str) -> str:
-    """Download a URL and return text."""
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (compatible; source-driven-fertility-chart/1.0; "
-            "+https://github.com/)"
-        )
+        "User-Agent": "Mozilla/5.0 source-driven-fertility-chart"
     }
     response = requests.get(url, headers=headers, timeout=45)
     response.raise_for_status()
@@ -84,17 +47,15 @@ def fetch_text(url: str) -> str:
 
 
 def normalise_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalise column names to lower snake-like names."""
-    out = df.copy()
-    out.columns = [
-        str(c).strip().lower().replace(" ", "_").replace("-", "_")
-        for c in out.columns
+    df = df.copy()
+    df.columns = [
+        str(col).strip().lower().replace(" ", "_").replace("-", "_")
+        for col in df.columns
     ]
-    return out
+    return df
 
 
-def find_column(columns: list[str], candidates: list[str]) -> str:
-    """Find the first matching column by exact or partial match."""
+def find_column(columns, candidates):
     for candidate in candidates:
         candidate = candidate.lower()
         for col in columns:
@@ -107,38 +68,28 @@ def find_column(columns: list[str], candidates: list[str]) -> str:
             if candidate in col:
                 return col
 
-    raise KeyError(f"Could not find any of these columns: {candidates}. Available: {columns}")
+    raise KeyError(f"Could not find any of {candidates}. Available columns: {columns}")
 
 
 def get_fertility_from_nomis() -> pd.DataFrame:
-    """
-    Download fertility data from the Nomis/ONS API.
-
-    The query pulls the original dataset for 2020-2024 and then filters for:
-    - geography: England and Wales
-    - measure: Total Fertility Rate / TFR
-
-    This avoids hard-coding yearly fertility values.
-    """
     params = {
-        # The Nomis API supports date filters. This requests the exact years we need.
-        "date": ",".join(str(y) for y in YEARS),
+        "date": ",".join(str(year) for year in YEARS),
         "ExcludeMissingValues": "true",
     }
 
     response = requests.get(NOMIS_FERTILITY_URL, params=params, timeout=60)
     response.raise_for_status()
 
-    raw_csv_path = RAW_DIR / "nomis_ons_lebirthrates_2020_2024.csv"
-    raw_csv_path.write_text(response.text, encoding="utf-8")
+    raw_path = RAW_DIR / "nomis_ons_lebirthrates_2020_2024.csv"
+    raw_path.write_text(response.text, encoding="utf-8")
 
     raw = pd.read_csv(StringIO(response.text))
     raw = normalise_columns(raw)
 
-    date_col = find_column(raw.columns.tolist(), ["date_name", "time_name", "date", "time"])
-    geography_col = find_column(raw.columns.tolist(), ["geography_name", "geography"])
-    measure_col = find_column(raw.columns.tolist(), ["measure_name", "measure"])
-    value_col = find_column(raw.columns.tolist(), ["obs_value", "value"])
+    date_col = find_column(raw.columns, ["date_name", "time_name", "date", "time"])
+    geography_col = find_column(raw.columns, ["geography_name", "geography"])
+    measure_col = find_column(raw.columns, ["measure_name", "measure"])
+    value_col = find_column(raw.columns, ["obs_value", "value"])
 
     filtered = raw[
         raw[geography_col].astype(str).str.contains("England and Wales", case=False, na=False)
@@ -146,10 +97,11 @@ def get_fertility_from_nomis() -> pd.DataFrame:
     ].copy()
 
     if filtered.empty:
-        raise ValueError(
-            "Could not find England and Wales Total Fertility Rate rows in the Nomis/ONS data. "
-            "Inspect data/raw/nomis_ons_lebirthrates_2020_2024.csv and adjust the filters."
-        )
+        print("Available columns:")
+        print(raw.columns.tolist())
+        print("Sample rows:")
+        print(raw.head(20).to_string())
+        raise ValueError("Could not find England and Wales Total Fertility Rate rows in Nomis data.")
 
     filtered["year"] = (
         filtered[date_col]
@@ -159,7 +111,8 @@ def get_fertility_from_nomis() -> pd.DataFrame:
     )
 
     filtered["england_wales_total_fertility_rate"] = pd.to_numeric(
-        filtered[value_col], errors="coerce"
+        filtered[value_col],
+        errors="coerce"
     )
 
     result = (
@@ -170,27 +123,20 @@ def get_fertility_from_nomis() -> pd.DataFrame:
         .reset_index(drop=True)
     )
 
+    result = result[result["year"].between(START_YEAR, END_YEAR)]
+
     missing_years = set(YEARS) - set(result["year"].tolist())
     if missing_years:
-        raise ValueError(f"Missing fertility years from Nomis/ONS extraction: {sorted(missing_years)}")
+        raise ValueError(f"Missing fertility years: {sorted(missing_years)}")
 
     return result
 
 
 def extract_social_media_users_from_text(text: str, year: int) -> float:
-    """
-    Extract UK social media users in millions from a DataReportal report page.
-
-    Examples handled:
-    - "There were 45.00 million social media users in the United Kingdom in January 2020"
-    - "The UK was home to 56.20 million social media users in January 2024"
-    - "There were 57.60 million social media users in the United Kingdom in January 2022"
-    """
     patterns = [
-        r"There were\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+(?:active\s+)?social media users\s+in\s+the\s+United Kingdom\s+in\s+January\s+%d" % year,
-        r"The UK was home to\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+(?:active\s+)?social media users\s+in\s+January\s+%d" % year,
-        r"there were\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+(?:active\s+)?social media user identities\s+in\s+the\s+United Kingdom\s+in\s+January\s+%d" % year,
-        r"([0-9]+(?:\.[0-9]+)?)\s+million\s+(?:active\s+)?social media users\s+in\s+the\s+United Kingdom\s+in\s+January\s+%d" % year,
+        rf"There were\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+social media users\s+in\s+the\s+United Kingdom\s+in\s+January\s+{year}",
+        rf"The UK was home to\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+social media users\s+in\s+January\s+{year}",
+        rf"([0-9]+(?:\.[0-9]+)?)\s+million\s+social media users\s+in\s+the\s+United Kingdom\s+in\s+January\s+{year}",
     ]
 
     for pattern in patterns:
@@ -198,40 +144,28 @@ def extract_social_media_users_from_text(text: str, year: int) -> float:
         if match:
             return float(match.group(1))
 
-    raise ValueError(
-        f"Could not extract social media users for {year} from DataReportal text. "
-        f"Check data/raw/datareportal_{year}.html and update the regex patterns."
-    )
+    raise ValueError(f"Could not extract DataReportal social media figure for {year}.")
 
 
 def get_social_media_from_datareportal() -> pd.DataFrame:
-    """
-    Download original DataReportal pages and extract social media user figures.
-
-    DataReportal does not provide a simple raw CSV endpoint for these yearly UK
-    report figures, so this script saves the original HTML and extracts the
-    published figure from the source page text.
-    """
     rows = []
 
     for year, url in DATAREPORTAL_REPORTS.items():
         html = fetch_text(url)
 
-        raw_html_path = RAW_DIR / f"datareportal_{year}.html"
-        raw_html_path.write_text(html, encoding="utf-8")
+        raw_path = RAW_DIR / f"datareportal_{year}.html"
+        raw_path.write_text(html, encoding="utf-8")
 
         soup = BeautifulSoup(html, "html.parser")
         text = soup.get_text(" ", strip=True)
 
         value = extract_social_media_users_from_text(text, year)
 
-        rows.append(
-            {
-                "year": year,
-                "uk_social_media_users_millions": value,
-                "datareportal_source_url": url,
-            }
-        )
+        rows.append({
+            "year": year,
+            "uk_social_media_users_millions": value,
+            "datareportal_source_url": url,
+        })
 
     return pd.DataFrame(rows).sort_values("year").reset_index(drop=True)
 
@@ -242,14 +176,11 @@ def build_dataset() -> pd.DataFrame:
 
     df = fertility.merge(social, on="year", how="inner").sort_values("year")
 
-    if len(df) != len(YEARS):
-        raise ValueError(
-            f"Expected {len(YEARS)} rows after merging, got {len(df)}. "
-            "Check source extraction."
-        )
-
     output_path = PROCESSED_DIR / "fertility_social_media_2020_2024.csv"
     df.to_csv(output_path, index=False)
+
+    print("Processed dataset:")
+    print(df.to_string(index=False))
 
     return df
 
@@ -297,7 +228,7 @@ def plot_zero_baseline_chart(df: pd.DataFrame) -> None:
     )
 
     ax2.set_ylabel("UK social media users (millions)", fontsize=12)
-    ax2.set_ylim(0, max(60, social_media_users.max() * 1.05))
+    ax2.set_ylim(0, 60)
 
     for x, y in zip(years, social_media_users):
         ax2.annotate(
@@ -350,91 +281,8 @@ def plot_zero_baseline_chart(df: pd.DataFrame) -> None:
 
 def main() -> None:
     df = build_dataset()
-    print(df)
     plot_zero_baseline_chart(df)
 
 
 if __name__ == "__main__":
     main()
-'''
-
-requirements = """\
-pandas
-matplotlib
-requests
-beautifulsoup4
-"""
-
-workflow = r'''name: Generate source-driven fertility chart
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  build-chart:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Generate chart from original source data
-        run: |
-          python plot_from_original_sources.py
-
-      - name: Upload generated chart
-        uses: actions/upload-artifact@v4
-        with:
-          name: fertility-social-media-zero-scale-chart
-          path: graph/birthrate_social_media_chart_zero_scale.png
-
-      - name: Commit generated data and chart
-        if: github.event_name != 'pull_request'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/raw data/processed graph/birthrate_social_media_chart_zero_scale.png
-          git commit -m "Generate chart from original source data" || echo "No changes to commit"
-          git push
-'''
-
-readme = r'''# Fertility Rate in England & Wales vs UK Social Media Consumption
-
-This project creates a zero-baseline chart comparing:
-
-- England & Wales total fertility rate
-- UK social media users
-
-The chart is generated from original source files rather than manually entered chart points.
-
-## How the data is sourced
-
-### Fertility data
-
-The script downloads fertility data from the Nomis/ONS API using the `LEBIRTHRATES` dataset.
-
-Raw source file saved to:
-
-```text
-data/raw/nomis_ons_lebirthrates_2020_2024.csv
