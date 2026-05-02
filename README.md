@@ -1,114 +1,64 @@
 # Fertility Rate in England & Wales vs UK Social Media Consumption
 
-This project visualises the relationship between **UK social media adoption** and the **total fertility rate in England & Wales** from 2020 to 2024.
+This project explores the relationship between **UK social media adoption** and the **total fertility rate in England & Wales** from 2020 to 2024.
 
-The chart shows an inverse trend: social media use rose sharply and then remained high, while the fertility rate in England & Wales declined to historically low levels.
+The chart uses a **zero-baseline view** to avoid visually exaggerating the fertility decline.
 
-![Rising social media use, falling fertility](graph/birthrate_social_media_chart.png)
+![Rising social media use, falling fertility](plots/fertility_social_media_zero_scale.png)
 
-## Core argument
+## Core idea
 
 This project does **not** claim that social media directly causes falling birth rates.
 
-A stronger and more defensible argument is:
+A stronger interpretation is:
 
-> Social media magnifies the structural reasons people delay or avoid having children. It does not create the fertility crisis on its own, but it makes the existing pressures feel more visible, more urgent and more emotionally overwhelming.
+> Social media acts as a mirror and amplifier of the wider social and economic pressures that make parenthood feel harder, later or less realistic.
 
-Fertility decline is shaped by many factors, including housing affordability, childcare costs, income insecurity, unstable relationships, delayed marriage, career pressure, weak family support and wider cultural change.
+Fertility decline is shaped by many factors, including housing affordability, childcare costs, income insecurity, delayed partnership formation, unstable work, gender expectations, family policy and wider cultural change.
 
-Where government policy fails to make parenthood feel affordable, stable and supported, social media amplifies that failure by constantly exposing people to comparison, fear, uncertainty and idealised lifestyles.
+Social media matters because it makes these pressures more visible, more comparable and more emotionally intense.
 
-## Why social media matters
+## Why social media is useful as a mirror
 
-Social media can influence fertility decisions indirectly through five mechanisms:
+Social media usage can help us understand falling birth rates because it reflects the emotional climate around adulthood.
 
-### 1. Comparison
+People do not make decisions about children in isolation. They make them inside a social environment shaped by stories, fears, comparisons and expectations.
 
-People are constantly exposed to curated versions of other people’s lives: better homes, better careers, better relationships, better holidays and better bodies.
+Social media exposes those signals at scale.
 
-This can make parenthood feel like something that should only happen once life is perfectly arranged.
+It shows what people are anxious about:
 
-### 2. Delay culture
+- whether they can afford a home
+- whether childcare is manageable
+- whether relationships feel stable enough
+- whether work feels secure enough
+- whether parenthood means losing freedom
+- whether the future feels safe enough to bring children into
 
-Modern social media often rewards optimisation: improve your career, improve your finances, improve your relationship, improve yourself.
+The platform does not create all these problems, but it can magnify them.
 
-The hidden message becomes:
+## The role of government and structural failure
 
-> You are not ready yet.
-
-This can reinforce delayed adulthood and delayed family formation.
-
-### 3. Fear amplification
-
-Online discussions about parenting often highlight the hardest parts: high costs, exhaustion, loss of freedom, relationship pressure, childcare struggles and mental load.
-
-These concerns are real, but social media can make them feel constant and unavoidable.
-
-### 4. Weakening confidence in the future
-
-Having children requires some belief that the future is manageable.
-
-When people repeatedly see content about housing crises, economic instability, climate anxiety, poor public services and political failure, parenthood can feel like a risky decision rather than a hopeful one.
-
-### 5. Visibility of policy failure
-
-If housing, childcare, parental leave and family support are weak, social media makes those failures visible at scale.
-
-People do not just experience pressure privately anymore. They see thousands of others expressing the same fear, frustration and hesitation.
-
-That turns individual anxiety into a shared social narrative.
-
-## The role of government failure
-
-A falling birth rate should not be framed only as a personal lifestyle choice.
+A falling birth rate should not be reduced to individual lifestyle choice.
 
 It also reflects whether society makes family formation feel possible.
 
-When governments fail to address housing affordability, childcare costs, insecure work and weak parental support, people respond rationally by delaying or avoiding parenthood.
+Where government policy fails to address housing costs, childcare costs, insecure work and weak parental support, people respond rationally by delaying or avoiding parenthood.
 
-Social media then magnifies those pressures by making the cost of parenthood more visible and the risks more emotionally salient.
+Social media then magnifies those failures by making the cost and anxiety of parenthood visible at scale.
 
 In simple terms:
 
-> Government failure creates the pressure. Social media spreads and intensifies the feeling of that pressure.
+> Structural pressure makes parenthood harder. Social media makes that pressure more visible, more shareable and more emotionally contagious.
 
-## Data used
+## Chart
 
-| Year | England & Wales total fertility rate | UK social media users |
-|---:|---:|---:|
-| 2020 | 1.58 | 45.0m |
-| 2021 | 1.61 | 53.0m |
-| 2022 | 1.49 | 57.6m |
-| 2023 | 1.42 | 57.1m |
-| 2024 | 1.41 | 56.2m |
+The generated chart compares:
 
-## Sources
+1. **England & Wales total fertility rate**
+2. **UK social media users in millions**
 
-### Fertility rate
-
-Source: Office for National Statistics  
-Dataset/report: Births in England and Wales: 2024 refreshed populations  
-URL: https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/livebirths/bulletins/birthsummarytablesenglandandwales/2024refreshedpopulations
-
-### Social media users
-
-Source: DataReportal UK Digital reports
-
-- 2020: https://datareportal.com/reports/digital-2020-united-kingdom
-- 2021: https://datareportal.com/reports/digital-2021-united-kingdom
-- 2022: https://datareportal.com/reports/digital-2022-united-kingdom
-- 2023: https://datareportal.com/reports/digital-2023-united-kingdom
-- 2024: https://datareportal.com/reports/digital-2024-united-kingdom
-
-## Files in this repository
+The chart is saved at:
 
 ```text
-Fertility-rate_England_and_Wales/
-├── birthrate_social_media_data.csv
-├── plot_birthrate_social_media.py
-├── graph/
-│   └── birthrate_social_media_chart.png
-├── .github/
-│   └── workflows/
-│       └── main.yml
-└── README.md
+plots/fertility_social_media_zero_scale.png
