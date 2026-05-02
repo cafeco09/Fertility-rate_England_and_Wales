@@ -1,4 +1,8 @@
 from pathlib import Path
+import textwrap
+
+content = r'''
+from pathlib import Path
 from io import StringIO
 import re
 
@@ -22,12 +26,13 @@ START_YEAR = 2020
 END_YEAR = 2024
 YEARS = list(range(START_YEAR, END_YEAR + 1))
 
-
-# Nomis/ONS dataset for live births and birth rates.
-# Source page: https://www.nomisweb.co.uk/datasets/lebirthrates
+# Original fertility source:
+# Nomis / ONS dataset: LEBIRTHRATES
+# Dataset page: https://www.nomisweb.co.uk/datasets/lebirthrates
 NOMIS_FERTILITY_URL = "https://www.nomisweb.co.uk/api/v01/dataset/LEBIRTHRATES.data.csv"
 
-
+# Original social media sources:
+# DataReportal yearly UK reports.
 DATAREPORTAL_REPORTS = {
     2020: "https://datareportal.com/reports/digital-2020-united-kingdom",
     2021: "https://datareportal.com/reports/digital-2021-united-kingdom",
@@ -41,21 +46,23 @@ def fetch_text(url: str) -> str:
     headers = {
         "User-Agent": "Mozilla/5.0 source-driven-fertility-chart"
     }
-    response = requests.get(url, headers=headers, timeout=45)
+    response = requests.get(url, headers=headers, timeout=60)
     response.raise_for_status()
     return response.text
 
 
 def normalise_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df.columns = [
+    out = df.copy()
+    out.columns = [
         str(col).strip().lower().replace(" ", "_").replace("-", "_")
-        for col in df.columns
+        for col in out.columns
     ]
-    return df
+    return out
 
 
 def find_column(columns, candidates):
+    columns = list(columns)
+
     for candidate in candidates:
         candidate = candidate.lower()
         for col in columns:
@@ -72,12 +79,18 @@ def find_column(columns, candidates):
 
 
 def get_fertility_from_nomis() -> pd.DataFrame:
+    """
+    Download fertility data from the original Nomis/ONS API.
+
+    This avoids manually entering fertility chart points.
+    The raw CSV is saved under data/raw/.
+    """
     params = {
         "date": ",".join(str(year) for year in YEARS),
         "ExcludeMissingValues": "true",
     }
 
-    response = requests.get(NOMIS_FERTILITY_URL, params=params, timeout=60)
+    response = requests.get(NOMIS_FERTILITY_URL, params=params, timeout=90)
     response.raise_for_status()
 
     raw_path = RAW_DIR / "nomis_ons_lebirthrates_2020_2024.csv"
@@ -97,11 +110,14 @@ def get_fertility_from_nomis() -> pd.DataFrame:
     ].copy()
 
     if filtered.empty:
-        print("Available columns:")
+        print("Nomis columns found:")
         print(raw.columns.tolist())
-        print("Sample rows:")
-        print(raw.head(20).to_string())
-        raise ValueError("Could not find England and Wales Total Fertility Rate rows in Nomis data.")
+        print("\nSample Nomis rows:")
+        print(raw.head(25).to_string())
+        raise ValueError(
+            "Could not find England and Wales Total Fertility Rate rows in Nomis data. "
+            "Check data/raw/nomis_ons_lebirthrates_2020_2024.csv."
+        )
 
     filtered["year"] = (
         filtered[date_col]
@@ -127,12 +143,17 @@ def get_fertility_from_nomis() -> pd.DataFrame:
 
     missing_years = set(YEARS) - set(result["year"].tolist())
     if missing_years:
-        raise ValueError(f"Missing fertility years: {sorted(missing_years)}")
+        raise ValueError(f"Missing fertility years from Nomis extraction: {sorted(missing_years)}")
 
     return result
 
 
 def extract_social_media_users_from_text(text: str, year: int) -> float:
+    """
+    Extract the published DataReportal UK social media user figure.
+
+    This avoids manually entering social-media chart points.
+    """
     patterns = [
         rf"There were\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+social media users\s+in\s+the\s+United Kingdom\s+in\s+January\s+{year}",
         rf"The UK was home to\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+social media users\s+in\s+January\s+{year}",
@@ -144,7 +165,10 @@ def extract_social_media_users_from_text(text: str, year: int) -> float:
         if match:
             return float(match.group(1))
 
-    raise ValueError(f"Could not extract DataReportal social media figure for {year}.")
+    raise ValueError(
+        f"Could not extract DataReportal social media figure for {year}. "
+        f"Check data/raw/datareportal_{year}.html."
+    )
 
 
 def get_social_media_from_datareportal() -> pd.DataFrame:
@@ -159,11 +183,11 @@ def get_social_media_from_datareportal() -> pd.DataFrame:
         soup = BeautifulSoup(html, "html.parser")
         text = soup.get_text(" ", strip=True)
 
-        value = extract_social_media_users_from_text(text, year)
+        users_millions = extract_social_media_users_from_text(text, year)
 
         rows.append({
             "year": year,
-            "uk_social_media_users_millions": value,
+            "uk_social_media_users_millions": users_millions,
             "datareportal_source_url": url,
         })
 
@@ -175,6 +199,9 @@ def build_dataset() -> pd.DataFrame:
     social = get_social_media_from_datareportal()
 
     df = fertility.merge(social, on="year", how="inner").sort_values("year")
+
+    if len(df) != len(YEARS):
+        raise ValueError(f"Expected {len(YEARS)} years, but got {len(df)} rows after merging.")
 
     output_path = PROCESSED_DIR / "fertility_social_media_2020_2024.csv"
     df.to_csv(output_path, index=False)
@@ -286,3 +313,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+'''
+
+path = Path("/mnt/data/plot_from_original_sources.py")
+path.write_text(textwrap.dedent(content).strip() + "\n", encoding="utf-8")
+print(path)
