@@ -22,6 +22,11 @@ jobs:
         with:
           persist-credentials: true
 
+      - name: Show repository files
+        run: |
+          echo "Current repo files:"
+          ls -la
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -30,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas matplotlib requests beautifulsoup4
+          pip install pandas matplotlib requests beautifulsoup4 lxml openpyxl
 
       - name: Create output folders
         run: |
@@ -40,6 +45,7 @@ jobs:
 
       - name: Generate chart from original source data
         run: |
+          test -f plot_from_original_sources.py || (echo "Missing plot_from_original_sources.py in repo root" && exit 1)
           python plot_from_original_sources.py
 
       - name: Check generated files
