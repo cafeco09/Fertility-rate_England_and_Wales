@@ -9,6 +9,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-chart:
     runs-on: ubuntu-latest
@@ -16,6 +19,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,12 +32,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas matplotlib
 
+      - name: Create graph folder
+        run: |
+          mkdir -p graph
+
       - name: Run chart script
         run: |
           python plot_birthrate_social_media.py
+
+      - name: Move chart into graph folder
+        run: |
+          if [ -f birthrate_social_media_chart.png ]; then
+            mv birthrate_social_media_chart.png graph/birthrate_social_media_chart.png
+          elif [ -f outputs/birthrate_social_media_chart.png ]; then
+            cp outputs/birthrate_social_media_chart.png graph/birthrate_social_media_chart.png
+          else
+            echo "Chart file not found. Check the output filename in your Python script."
+            exit 1
+          fi
 
       - name: Upload generated chart
         uses: actions/upload-artifact@v4
         with:
           name: fertility-social-media-chart
-          path: birthrate_social_media_chart.png
+          path: graph/birthrate_social_media_chart.png
+
+      - name: Commit generated chart to repository
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add graph/birthrate_social_media_chart.png
+          git commit -m "Generate fertility chart" || echo "No changes to commit"
+          git push
