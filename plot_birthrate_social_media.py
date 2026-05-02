@@ -1,8 +1,4 @@
 from pathlib import Path
-import textwrap
-
-content = r'''
-from pathlib import Path
 from io import StringIO
 import re
 
@@ -21,18 +17,12 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 GRAPH_DIR.mkdir(parents=True, exist_ok=True)
 
-
 START_YEAR = 2020
 END_YEAR = 2024
 YEARS = list(range(START_YEAR, END_YEAR + 1))
 
-# Original fertility source:
-# Nomis / ONS dataset: LEBIRTHRATES
-# Dataset page: https://www.nomisweb.co.uk/datasets/lebirthrates
 NOMIS_FERTILITY_URL = "https://www.nomisweb.co.uk/api/v01/dataset/LEBIRTHRATES.data.csv"
 
-# Original social media sources:
-# DataReportal yearly UK reports.
 DATAREPORTAL_REPORTS = {
     2020: "https://datareportal.com/reports/digital-2020-united-kingdom",
     2021: "https://datareportal.com/reports/digital-2021-united-kingdom",
@@ -43,9 +33,7 @@ DATAREPORTAL_REPORTS = {
 
 
 def fetch_text(url: str) -> str:
-    headers = {
-        "User-Agent": "Mozilla/5.0 source-driven-fertility-chart"
-    }
+    headers = {"User-Agent": "Mozilla/5.0 source-driven-fertility-chart"}
     response = requests.get(url, headers=headers, timeout=60)
     response.raise_for_status()
     return response.text
@@ -79,12 +67,6 @@ def find_column(columns, candidates):
 
 
 def get_fertility_from_nomis() -> pd.DataFrame:
-    """
-    Download fertility data from the original Nomis/ONS API.
-
-    This avoids manually entering fertility chart points.
-    The raw CSV is saved under data/raw/.
-    """
     params = {
         "date": ",".join(str(year) for year in YEARS),
         "ExcludeMissingValues": "true",
@@ -106,7 +88,9 @@ def get_fertility_from_nomis() -> pd.DataFrame:
 
     filtered = raw[
         raw[geography_col].astype(str).str.contains("England and Wales", case=False, na=False)
-        & raw[measure_col].astype(str).str.contains("Total Fertility Rate|TFR", case=False, regex=True, na=False)
+        & raw[measure_col].astype(str).str.contains(
+            "Total Fertility Rate|TFR", case=False, regex=True, na=False
+        )
     ].copy()
 
     if filtered.empty:
@@ -115,8 +99,7 @@ def get_fertility_from_nomis() -> pd.DataFrame:
         print("\nSample Nomis rows:")
         print(raw.head(25).to_string())
         raise ValueError(
-            "Could not find England and Wales Total Fertility Rate rows in Nomis data. "
-            "Check data/raw/nomis_ons_lebirthrates_2020_2024.csv."
+            "Could not find England and Wales Total Fertility Rate rows in Nomis data."
         )
 
     filtered["year"] = (
@@ -128,7 +111,7 @@ def get_fertility_from_nomis() -> pd.DataFrame:
 
     filtered["england_wales_total_fertility_rate"] = pd.to_numeric(
         filtered[value_col],
-        errors="coerce"
+        errors="coerce",
     )
 
     result = (
@@ -149,11 +132,6 @@ def get_fertility_from_nomis() -> pd.DataFrame:
 
 
 def extract_social_media_users_from_text(text: str, year: int) -> float:
-    """
-    Extract the published DataReportal UK social media user figure.
-
-    This avoids manually entering social-media chart points.
-    """
     patterns = [
         rf"There were\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+social media users\s+in\s+the\s+United Kingdom\s+in\s+January\s+{year}",
         rf"The UK was home to\s+([0-9]+(?:\.[0-9]+)?)\s+million\s+social media users\s+in\s+January\s+{year}",
@@ -165,10 +143,7 @@ def extract_social_media_users_from_text(text: str, year: int) -> float:
         if match:
             return float(match.group(1))
 
-    raise ValueError(
-        f"Could not extract DataReportal social media figure for {year}. "
-        f"Check data/raw/datareportal_{year}.html."
-    )
+    raise ValueError(f"Could not extract DataReportal social media figure for {year}.")
 
 
 def get_social_media_from_datareportal() -> pd.DataFrame:
@@ -185,11 +160,13 @@ def get_social_media_from_datareportal() -> pd.DataFrame:
 
         users_millions = extract_social_media_users_from_text(text, year)
 
-        rows.append({
-            "year": year,
-            "uk_social_media_users_millions": users_millions,
-            "datareportal_source_url": url,
-        })
+        rows.append(
+            {
+                "year": year,
+                "uk_social_media_users_millions": users_millions,
+                "datareportal_source_url": url,
+            }
+        )
 
     return pd.DataFrame(rows).sort_values("year").reset_index(drop=True)
 
@@ -313,8 +290,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-'''
-
-path = Path("/mnt/data/plot_from_original_sources.py")
-path.write_text(textwrap.dedent(content).strip() + "\n", encoding="utf-8")
-print(path)
